@@ -1,0 +1,157 @@
+<html>
+
+<head>
+    <script src='js/WebAudioFontPlayer.js'></script>
+    <!-- <script src='https://surikov.github.io/webaudiofontdata/sound/0250_SoundBlasterOld_sf2.js'></script> -->
+    <!-- <script src='js/soundfonts/0040_JCLive_sf2_file.js'></script> -->
+    <script>
+        //    var instrument = _tone_0250_SoundBlasterOld_sf2;
+        var instrumentIndex = 208;//896; //181; //182;
+        var instrument;
+        if (!("requestMIDIAccess" in navigator)) {
+            document.body.innerHTML =
+                `<h1>:-/</h1><p>I'm sorry, but your browser does not support the WebMIDI API ☹️🚫🎹</p>`;
+        }
+
+        navigator.requestMIDIAccess()
+            .then((access) => {
+
+                // Get lists of available MIDI controllers
+                const inputs = access.inputs;
+
+                inputs.forEach((midiInput) => {
+                    midiInput.onmidimessage = function (message) {
+                        var status = message.data[0];
+                        var data1 = message.data[1];
+                        var data2 = message.data[2];
+                        if (status == 176 && data1 == 64 && data2 == 127) {
+                            pedalDown();
+                        }
+                        if (status == 176 && data1 == 64 && data2 == 0) {
+                            pedalUp();
+                        }
+                    }
+                })
+            });
+
+        function pedalDown() {
+
+            var dec = decodedChords[song[currentIndex]];
+            console.log("down");
+            player.queueChord(audioContext, output, instrument, 0, dec, 999);
+            document.getElementById("p1").innerHTML = song[currentIndex];
+        }
+
+        function pedalUp() {
+            player.cancelQueue(audioContext);
+            console.log("up");
+            currentIndex++;
+            if (currentIndex >= song.length) {
+                currentIndex = 0;
+            }
+        }
+
+        var currentIndex = 0;
+        var song = ["Am7", "D7", "Gmaj7", "Cmaj7",
+            "F#m7b5", "B7", "Em", "Em",
+            "Am7", "D7", "Gmaj7", "Cmaj7",
+            "F#m7b5", "B7", "Em", "Em",
+            "F#m7b5", "B7b9", "Em", "Em",
+            "Am7", "D7", "Gmaj7", "Gmaj7",
+            "F#m7b5", "B7b9", "Em7", "Eb7", "Dm7", "Db7",
+            "Cmaj7", "B7b9", "Em", "Em"
+        ];
+        var chords = {
+            "Am7": ["A3", "G4", "C5"],
+            "D7": ["D3", "C3", "F#4"],
+            "Gmaj7": ["G3", "F#4", "B4"],
+            "Cmaj7": ["C3", "B3", "E4"],
+            "F#m7b5": ["F#3", "C4", "E4", "A4"],
+            "B7": ["B2", "A3", "D#4"],
+            "Em": ["E3", "B3", "G4"],
+            "B7b9": ["B2", "A3", "C", "D#4"],
+            "Em7": ["E3", "D4", "G4"],
+            "Eb7": ["Eb3", "Db4", "G4"],
+            "Dm7": ["D3", "C4", "F4"],
+            "Db7": ["Db3", "B3", "F4"],
+        };
+        var decodedChords = {};
+
+        function decodeChords(chords) {
+            var decoded = {};
+            for (var i in chords) {
+                decoded[i] = [];
+                for (var j = 0; j < chords[i].length; j++) {
+                    decoded[i].push(getMIDINote(chords[i][j]));
+                }
+            }
+            return decoded;
+        }
+
+        function getMIDINote(noteString) {
+            var base = {
+                "C": 0,
+                "C#": 1,
+                "Db": 1,
+                "D": 2,
+                "D#": 3,
+                "Eb": 3,
+                "E": 4,
+                "Fb": 4,
+                "F": 5,
+                "F#": 6,
+                "Gb": 6,
+                "G": 7,
+                "G#": 8,
+                "Ab": 8,
+                "A": 9,
+                "A#": 10,
+                "Bb": 10,
+                "B": 11,
+                "Cb": 11
+            }
+            var parts = noteString.match(/([A-G](?:#|b)?)(\d+)/);
+            if (!parts) {
+                return false;
+            }
+            return base[parts[1]] + 12 * (parseInt(parts[2]) + 1);
+        }
+
+        var AudioContextFunc = window.AudioContext || window.webkitAudioContext;
+        var audioContext;
+        var output;
+        var player;
+        decodedChords = decodeChords(chords);
+
+        function go() {
+            // var env = player.queueWaveTable(audioContext, output, _tone_0250_SoundBlasterOld_sf2, 0, 12 * 4 + 7, 2);
+            // queueChord()
+            // player.queueChord(audioContext, output, instrument, 0, [60, 67], 1.5);
+            audioContext = new AudioContextFunc();
+            output = audioContext.destination;
+            player = new WebAudioFontPlayer();
+
+            var info2 = player.loader.instrumentInfo(instrumentIndex);
+            player.loader.startLoad(audioContext, info2.url, info2.variable);
+            player.loader.waitLoad(function () {
+                console.log('done', info2);
+                instrument = window[info2.variable];
+                player.loader.decodeAfterLoading(audioContext, info2.variable);
+                for (var i = 0; i < instrument.zones.length; i++) {
+                    instrument.zones[i].ahdsr = false;
+                }
+
+            });
+
+
+            // player.loader.decodeAfterLoading(audioContext, instrument);
+        }
+    </script>
+</head>
+
+<body>
+    <p><button id="btnGo" onclick='go();' type="button">Go</button></p>
+    <div style="width:1008px;margin:10px auto;font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
+</body>
+
+</html>
