@@ -1,16 +1,28 @@
-<html>
+<!doctype html>
+<html lang="en">
 
 <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+        integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+
+    <title>Chord comping using MIDI sustain pedal</title>
+
     <script src='js/WebAudioFontPlayer.js'></script>
     <!-- <script src='https://surikov.github.io/webaudiofontdata/sound/0250_SoundBlasterOld_sf2.js'></script> -->
     <!-- <script src='js/soundfonts/0040_JCLive_sf2_file.js'></script> -->
     <script>
         //    var instrument = _tone_0250_SoundBlasterOld_sf2;
-        var instrumentIndex = 208;//896; //181; //182;
+        var instrumentIndex = 208; //896; //181; //182;
         var instrument;
         if (!("requestMIDIAccess" in navigator)) {
-            document.body.innerHTML =
-                `<h1>:-/</h1><p>I'm sorry, but your browser does not support the WebMIDI API ☹️🚫🎹</p>`;
+            document.write(
+                "<h3>This browser does not support WebMIDI, check <a href='https://caniuse.com/#feat=midi'>current Web MIDI support</a>. Chrome browser works, for example.</h3>"
+                );
         }
 
         navigator.requestMIDIAccess()
@@ -35,16 +47,15 @@
             });
 
         function pedalDown() {
-
             var dec = decodedChords[song[currentIndex]];
-            console.log("down");
+            logIt("down");
             player.queueChord(audioContext, output, instrument, 0, dec, 999);
             document.getElementById("p1").innerHTML = song[currentIndex];
         }
 
         function pedalUp() {
             player.cancelQueue(audioContext);
-            console.log("up");
+            logIt("up");
             currentIndex++;
             if (currentIndex >= song.length) {
                 currentIndex = 0;
@@ -134,7 +145,7 @@
             var info2 = player.loader.instrumentInfo(instrumentIndex);
             player.loader.startLoad(audioContext, info2.url, info2.variable);
             player.loader.waitLoad(function () {
-                console.log('done', info2);
+                logIt('done', info2);
                 instrument = window[info2.variable];
                 player.loader.decodeAfterLoading(audioContext, info2.variable);
                 for (var i = 0; i < instrument.zones.length; i++) {
@@ -146,12 +157,40 @@
 
             // player.loader.decodeAfterLoading(audioContext, instrument);
         }
+
+        function logIt(s) {
+            $("#taLog").append(s + "\n");
+        }
     </script>
+
+
 </head>
 
 <body>
-    <p><button id="btnGo" onclick='go();' type="button">Go</button></p>
-    <div style="width:1008px;margin:10px auto;font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
+    <div class="container">
+        <div class="row">
+            <div class="col text-center">
+                <div id="divSorry">&nbsp;</div>
+                <button class="btn btn-primary" id="btnGo" onclick='go();' type="button">Initialize</button>
+                <div style="font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
+                <div><textarea id="taLog" class="form-control" rows="6" style="font-family: monospace"></textarea></div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous">
+    </script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous">
+    </script>
 </body>
 
 </html>
