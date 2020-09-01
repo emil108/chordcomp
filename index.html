@@ -22,7 +22,7 @@
         if (!("requestMIDIAccess" in navigator)) {
             document.write(
                 "<h3>This browser does not support WebMIDI, check <a href='https://caniuse.com/#feat=midi'>current Web MIDI support</a>. Chrome browser works, for example.</h3>"
-                );
+            );
         }
 
         navigator.requestMIDIAccess()
@@ -30,6 +30,13 @@
 
                 // Get lists of available MIDI controllers
                 const inputs = access.inputs;
+                const inputsValues = access.inputs.values();
+
+                logIt("Hi, press Initialize to begin.");
+                for (var input = inputsValues.next(); input && !input.done; input = inputsValues.next()) {
+                    var deviceName = input.value.name;
+                    logIt("Found " + deviceName);
+                }
 
                 inputs.forEach((midiInput) => {
                     midiInput.onmidimessage = function (message) {
@@ -48,14 +55,14 @@
 
         function pedalDown() {
             var dec = decodedChords[song[currentIndex]];
-            logIt("down");
+            logIt("Pedal down");
             player.queueChord(audioContext, output, instrument, 0, dec, 999);
             document.getElementById("p1").innerHTML = song[currentIndex];
         }
 
         function pedalUp() {
             player.cancelQueue(audioContext);
-            logIt("up");
+            logIt("Pedal up");
             currentIndex++;
             if (currentIndex >= song.length) {
                 currentIndex = 0;
@@ -145,7 +152,7 @@
             var info2 = player.loader.instrumentInfo(instrumentIndex);
             player.loader.startLoad(audioContext, info2.url, info2.variable);
             player.loader.waitLoad(function () {
-                logIt('done', info2);
+                logIt('Initialization done, press the sustain pedal to hear the first chord.', info2);
                 instrument = window[info2.variable];
                 player.loader.decodeAfterLoading(audioContext, info2.variable);
                 for (var i = 0; i < instrument.zones.length; i++) {
