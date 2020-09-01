@@ -15,6 +15,37 @@
     <script src='js/WebAudioFontPlayer.js'></script>
     <!-- <script src='https://surikov.github.io/webaudiofontdata/sound/0250_SoundBlasterOld_sf2.js'></script> -->
     <!-- <script src='js/soundfonts/0040_JCLive_sf2_file.js'></script> -->
+
+
+</head>
+
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col text-center">
+                <div id="divSorry">&nbsp;</div>
+                <button class="btn btn-primary" id="btnGo" type="button">Initialize</button>
+                <div style="font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
+                <div><textarea id="taLog" class="form-control" rows="6" style="font-family: monospace"
+                        readonly></textarea></div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous">
+    </script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous">
+    </script>
+
     <script>
         //    var instrument = _tone_0250_SoundBlasterOld_sf2;
         var instrumentIndex = 208; //896; //181; //182;
@@ -24,34 +55,6 @@
                 "<h3>This browser does not support WebMIDI, check <a href='https://caniuse.com/#feat=midi'>current Web MIDI support</a>. Chrome browser works, for example.</h3>"
             );
         }
-
-        navigator.requestMIDIAccess()
-            .then((access) => {
-
-                // Get lists of available MIDI controllers
-                const inputs = access.inputs;
-                const inputsValues = access.inputs.values();
-
-                logIt("Hi, press Initialize to begin.");
-                for (var input = inputsValues.next(); input && !input.done; input = inputsValues.next()) {
-                    var deviceName = input.value.name;
-                    logIt("Found " + deviceName);
-                }
-
-                inputs.forEach((midiInput) => {
-                    midiInput.onmidimessage = function (message) {
-                        var status = message.data[0];
-                        var data1 = message.data[1];
-                        var data2 = message.data[2];
-                        if (status == 176 && data1 == 64 && data2 == 127) {
-                            pedalDown();
-                        }
-                        if (status == 176 && data1 == 64 && data2 == 0) {
-                            pedalUp();
-                        }
-                    }
-                })
-            });
 
         function pedalDown() {
             var dec = decodedChords[song[currentIndex]];
@@ -141,7 +144,50 @@
         var player;
         decodedChords = decodeChords(chords);
 
+        $(function () {
+            logIt("Hi, press Initialize to begin.");
+            $("#btnGo").on("click", function () {
+                go();
+            });
+        });
+
+        var noMidiDevices = 0;
+
         function go() {
+            navigator.requestMIDIAccess()
+                .then((access) => {
+
+                    // Get lists of available MIDI controllers
+                    const inputs = access.inputs;
+                    const inputsValues = access.inputs.values();
+
+                    var count = 0;
+                    for (var input = inputsValues.next(); input && !input.done; input = inputsValues.next()) {
+                        var deviceName = input.value.name;
+                        logIt("Found " + deviceName);
+                        count++;
+                    }
+                    if (!count) {
+                        logIt("No MIDI devices found, sorry.");
+                        noMidiDevices = 1;
+                    }
+                    inputs.forEach((midiInput) => {
+                        midiInput.onmidimessage = function (message) {
+                            var status = message.data[0];
+                            var data1 = message.data[1];
+                            var data2 = message.data[2];
+                            if (status == 176 && data1 == 64 && data2 == 127) {
+                                pedalDown();
+                            }
+                            if (status == 176 && data1 == 64 && data2 == 0) {
+                                pedalUp();
+                            }
+                        }
+                    })
+                });
+
+
+
             // var env = player.queueWaveTable(audioContext, output, _tone_0250_SoundBlasterOld_sf2, 0, 12 * 4 + 7, 2);
             // queueChord()
             // player.queueChord(audioContext, output, instrument, 0, [60, 67], 1.5);
@@ -152,17 +198,16 @@
             var info2 = player.loader.instrumentInfo(instrumentIndex);
             player.loader.startLoad(audioContext, info2.url, info2.variable);
             player.loader.waitLoad(function () {
-                logIt('Initialization done, press the sustain pedal to hear the first chord.', info2);
+                if (!noMidiDevices) {
+                    logIt('Initialization done, press the sustain pedal to hear the first chord.', info2);
+                }
                 instrument = window[info2.variable];
                 player.loader.decodeAfterLoading(audioContext, info2.variable);
                 for (var i = 0; i < instrument.zones.length; i++) {
                     instrument.zones[i].ahdsr = false;
                 }
-
             });
 
-
-            // player.loader.decodeAfterLoading(audioContext, instrument);
         }
 
         function logIt(s) {
@@ -170,34 +215,6 @@
         }
     </script>
 
-
-</head>
-
-<body>
-    <div class="container">
-        <div class="row">
-            <div class="col text-center">
-                <div id="divSorry">&nbsp;</div>
-                <button class="btn btn-primary" id="btnGo" onclick='go();' type="button">Initialize</button>
-                <div style="font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
-                <div><textarea id="taLog" class="form-control" rows="6" style="font-family: monospace"></textarea></div>
-            </div>
-
-        </div>
-
-    </div>
-
-    <!-- Optional JavaScript -->
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
-        integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous">
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
-        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous">
-    </script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
-        integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous">
-    </script>
 </body>
 
 </html>
