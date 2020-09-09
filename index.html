@@ -15,19 +15,69 @@
     <script src='js/WebAudioFontPlayer.js'></script>
     <!-- <script src='https://surikov.github.io/webaudiofontdata/sound/0250_SoundBlasterOld_sf2.js'></script> -->
     <!-- <script src='js/soundfonts/0040_JCLive_sf2_file.js'></script> -->
-
+    <link rel="stylesheet" href="css/fontawesome-all.min.css">
+    <style>
+        #spanErrors {
+            padding-left: 3em;
+        }
+    </style>
 
 </head>
 
 <body>
     <div class="container">
         <div class="row">
-            <div class="col text-center">
-                <div id="divSorry">&nbsp;</div>
-                <button class="btn btn-primary" id="btnGo" type="button">Initialize</button>
-                <div style="font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
+            <div class="col-12 mt-4">
+                <button class="btn btn-primary" id="btnGo" type="button">Initialize MIDI devices</button>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col mt-4">
+                <form>
+                    <div class="row">
+                        <div class="col-lg-4 col-md-6 col-12">
+                            <label for="selectSong">Select song</label> <select class="form-control"
+                                id="selectSong"></select>
+                        </div>
+
+                    </div>
+                    <br>
+                    <div class="row">
+                        <div class="col-12">Song menu
+                            <button class="btn btn-light" type="button" id="btnAddSong">add new</button> &nbsp;
+                            <button class="btn btn-light" type="button" id="btnEditSong">edit</button> &nbsp;
+                            <button class="btn btn-light" type="button" id="btnDeleteSong">delete</button>
+
+                        </div>
+                    </div>
+                    <div class="row d-none mt-4" id="divAddSong">
+                        <div class="col-12">
+                            <div class="float-right" style="width:2em"><button id="btnCloseSong" type="button"
+                                    class="close" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                            </div>
+                            <div class="d-none" style="border-bottom:1px solid #212529" id="divAddingSong">Adding new
+                                song</div>
+                            <div class="d-none" style="border-bottom:1px solid #212529" id="divEditingSong">Editing
+                                current song</div>
+                            <div class="form-group mt-1">
+                                <label for="songTitle">Title</label> <input type="text" class="form-control"
+                                    id="songTitle">
+                            </div>
+                            <div class="form-group">
+                                <label for="taChanges">Changes</label>
+                                <textarea class="form-control" rows="3" id="taChanges"></textarea>
+                                <span class="text-muted form-text" id="spanChordTypes"></span>
+                            </div>
+                            <div><button class="btn btn-secondary" type="button" id="btnSaveSong">Save</button>
+                                <span id="spanErrors"></span>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                <div class="mt-4" style="font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
                 <div><textarea id="taLog" class="form-control" rows="6" style="font-family: monospace"
                         readonly></textarea></div>
+
             </div>
 
         </div>
@@ -47,6 +97,12 @@
     </script>
 
     <script>
+        Storage.prototype.setObj = function (key, obj) {
+            return this.setItem(key, JSON.stringify(obj))
+        }
+        Storage.prototype.getObj = function (key) {
+            return JSON.parse(this.getItem(key))
+        }
         //    var instrument = _tone_0250_SoundBlasterOld_sf2;
         var instrumentIndex = 208; //896; //181; //182;
         var instrument;
@@ -58,14 +114,44 @@
 
         function pedalDown() {
             var dec = decodedChords[song[currentIndex]];
-            logIt("Pedal down");
+            // logIt("Pedal down");
+            player.queueChord(audioContext, output, instrument, 0, dec, 999);
+            document.getElementById("p1").innerHTML = song[currentIndex];
+        }
+
+        function pedalDownNew() {
+            var chord = song[currentIndex];
+            // console.log("song", song);
+            // console.log("curr.index", currentIndex);
+            // console.log("Chord", chord);
+            var offsetFromC = getNoteOffset(chord);
+            if (offsetFromC > 9) {
+                offsetFromC -= 12;
+            }
+            // logIt("offsetFromC " + offsetFromC);
+            var parts = chord.match(/^([A-G](?:#|b)?)(.*)$/);
+            if (!parts) {
+                logIt("Can't decode chord: " + chord);
+                pedalUp();
+                return false;
+            }
+            var baseChord = "C" + parts[2];
+            // logIt("baseChord " + baseChord);
+            if (!decodedBasicChords[baseChord]) {
+                logIt("Couldn't decode base chord: " + baseChord);
+            }
+            var dec = JSON.parse(JSON.stringify(decodedBasicChords[baseChord]));
+            for (var i = 0; i < dec.length; i++) {
+                dec[i] += offsetFromC;
+            }
+            // logIt("Pedal down");
             player.queueChord(audioContext, output, instrument, 0, dec, 999);
             document.getElementById("p1").innerHTML = song[currentIndex];
         }
 
         function pedalUp() {
             player.cancelQueue(audioContext);
-            logIt("Pedal up");
+            // logIt("Pedal up");
             currentIndex++;
             if (currentIndex >= song.length) {
                 currentIndex = 0;
@@ -73,6 +159,8 @@
         }
 
         var currentIndex = 0;
+        var songIndex = 0;
+        var editSong = 0;
         var song = ["Am7", "D7", "Gmaj7", "Cmaj7",
             "F#m7b5", "B7", "Em", "Em",
             "Am7", "D7", "Gmaj7", "Cmaj7",
@@ -96,7 +184,48 @@
             "Dm7": ["D3", "C4", "F4"],
             "Db7": ["Db3", "B3", "F4"],
         };
+        var baseMIDINotes = {
+            "C": 0,
+            "C#": 1,
+            "Db": 1,
+            "D": 2,
+            "D#": 3,
+            "Eb": 3,
+            "E": 4,
+            "Fb": 4,
+            "F": 5,
+            "F#": 6,
+            "Gb": 6,
+            "G": 7,
+            "G#": 8,
+            "Ab": 8,
+            "A": 9,
+            "A#": 10,
+            "Bb": 10,
+            "B": 11,
+            "Cb": 11
+        };
+
+        // 5, 2, add9, +, o, h, sus, ^, -, ^7, -7, 7, 7sus, h7, o7, ^9, ^13, 6, 69, ^7#11, 
+        // ^9#11, ^7#5, -6, -69, -^7, -^9, -9, -11, -7b5, h9, -b6, -#5, 9, 7b9, 7#9, 7#11, 
+        // 7b5, 7#5, 9#11, 9b5, 9#5, 7b13, 7#9#5, 7#9b5, 7#9#11, 7b9#11, 7b9b5, 7b9#5, 7b9#9, 
+        //  7b9b13, 7alt, 13, 13#11, 13b9, 13#9, 7b9sus, 7susadd3, 9sus, 13sus, 7b13sus, 11
+
+
+        var basicChords = {
+            "C": ["C3", "G3", "E4"],
+            "Cm": ["C3", "G3", "Eb4"],
+            "C7": ["C3", "Bb3", "E4"],
+            "Cm7": ["C3", "Bb3", "Eb4"],
+            "Cmaj7": ["C3", "B3", "E4"],
+            "Cm7b5": ["C3", "Gb3", "Bb3", "Eb4"],
+            "C6": ["C3", "A3", "E4"],
+            "Cmaj7#11": ["C3", "B3", "E4", "F#4"],
+            "C7b9": ["C3", "Bb3", "Db4", "E4"]
+        };
+
         var decodedChords = {};
+        var decodedBasicChords = {};
 
         function decodeChords(chords) {
             var decoded = {};
@@ -109,33 +238,85 @@
             return decoded;
         }
 
-        function getMIDINote(noteString) {
-            var base = {
-                "C": 0,
-                "C#": 1,
-                "Db": 1,
-                "D": 2,
-                "D#": 3,
-                "Eb": 3,
-                "E": 4,
-                "Fb": 4,
-                "F": 5,
-                "F#": 6,
-                "Gb": 6,
-                "G": 7,
-                "G#": 8,
-                "Ab": 8,
-                "A": 9,
-                "A#": 10,
-                "Bb": 10,
-                "B": 11,
-                "Cb": 11
+        function decodeBasicChords(chords) {
+            var decoded = {};
+            for (var i in chords) {
+                decoded[i] = [];
+                for (var j = 0; j < chords[i].length; j++) {
+                    decoded[i].push(getMIDINote(basicChords[i][j]));
+                }
             }
+            return decoded;
+        }
+
+        function getMIDINote(noteString) {
             var parts = noteString.match(/([A-G](?:#|b)?)(\d+)/);
             if (!parts) {
                 return false;
             }
-            return base[parts[1]] + 12 * (parseInt(parts[2]) + 1);
+            return baseMIDINotes[parts[1]] + 12 * (parseInt(parts[2]) + 1);
+        }
+
+        function getNoteOffset(chordString) {
+            var parts = chordString.match(/^([A-G](?:#|b)?)/);
+            if (!parts) {
+                logIt("getNoteOffset failed: " + chordString);
+                return false;
+            }
+            var note = parts[1];
+            var offsetFromC = baseMIDINotes[note];
+            return offsetFromC;
+        }
+
+        function populateSongSelect() {
+            var songs = localStorage.getObj("songs");
+            if (!songs) {
+                return false;
+            }
+            $("#selectSong").html("");
+            var ch = "";
+            for (var i = 0; i < songs.length; i++) {
+                appendSongSelect(songs[i], i);
+            }
+        }
+
+        function appendSongSelect(song, index) {
+            var temp = song.changes;
+            ch = temp.slice(0, temp.length >= 2 ? 2 : 1).join(" ") + (temp.length > 2 ? " ..." : "");
+            $("#selectSong").append("<option value='" + index + "'>" + index + ": " + song.title + " - " + ch +
+                "</option>");
+
+        }
+
+        function parseChanges(changes) {
+            var chords = changes.split(/[\s,;]+/);
+            var song = [];
+            var parts;
+            var chordTypes = [];
+            var errors = [];
+            for (var c in basicChords) {
+                chordTypes.push(c.substring(1));
+            }
+            for (var i = 0; i < chords.length; i++) {
+                if (!chords[i]) {
+                    continue;
+                }
+                parts = chords[i].match(/^([A-G](?:#|b)?)(.*)$/);
+                if (parts && parts[1] && (!parts[2])) {
+                    song.push(chords[i]);
+                    continue;
+                }
+                if (parts && parts[1] && (chordTypes.indexOf(parts[2]) !== -1)) {
+                    song.push(chords[i]);
+                    continue;
+                }
+                logIt("Couldn't identify: " + chords[i] + " - skipping it");
+                errors.push(chords[i]);
+            }
+            return {
+                "changes": song,
+                "errors": errors
+            };
         }
 
         var AudioContextFunc = window.AudioContext || window.webkitAudioContext;
@@ -143,11 +324,124 @@
         var output;
         var player;
         decodedChords = decodeChords(chords);
-
+        decodedBasicChords = decodeBasicChords(basicChords);
         $(function () {
-            logIt("Hi, press Initialize to begin.");
+            logIt("Hi, press Initialize MIDI devices to start.");
             $("#btnGo").on("click", function () {
                 go();
+            });
+            var songs = localStorage.getObj("songs");
+            if (!songs || !songs.length) {
+                songs = [{
+                    "title": "Autumn Leaves",
+                    "changes": song
+                }];
+                localStorage.setObj("songs", songs);
+            }
+
+            populateSongSelect();
+
+            $("#spanChordTypes").html(function () {
+                var s = [];
+                for (var i in basicChords) {
+                    s.push(i);
+                }
+                return "Currently recognized chord types in any key: " + s.join(", ");
+            });
+            $("#btnAddSong,#btnEditSong").on("click", function () {
+                var clicked = this.id === "btnEditSong" ? "edit" : "add";
+                if ($("#divAddSong").hasClass("d-none")) {
+                    $("#divAddSong").removeClass("d-none");
+                }
+                if (clicked === "edit") {
+                    $("#divAddingSong").addClass("d-none");
+                    $("#divEditingSong").removeClass("d-none");
+                    var songs = localStorage.getObj("songs");
+                    $("#songTitle").val(songs[songIndex].title);
+                    $("#taChanges").val(songs[songIndex].changes.join(" "));
+                    editSong = 1;
+                } else {
+                    $("#divAddingSong").removeClass("d-none");
+                    $("#divEditingSong").addClass("d-none");
+                    $("#songTitle").val("");
+                    $("#taChanges").val("");
+                    editSong = 0;
+                }
+            });
+            $("#btnCloseSong").on("click", function () {
+                $("#divAddSong").addClass("d-none");
+            });
+
+            $("#btnDeleteSong").on("click", function () {
+                var songs = localStorage.getObj("songs");
+                if (songs.length <= 1) {
+                    return false;
+                }
+                if (window.confirm("Delete the current song?")) {
+                    songs.splice(songIndex, 1);
+                    localStorage.setObj("songs", songs);
+                    if (songIndex > songs.length - 1) {
+                        songIndex = songs.length - 1;
+                    }
+                    currentIndex = 0;
+                    songs = localStorage.getObj("songs");
+                    song = songs[songIndex].changes;
+                    populateSongSelect();
+                    $("#selectSong").val(songIndex);
+                    $("#songTitle").val("");
+                    $("#taChanges").val("");
+                    $("#divAddingSong").removeClass("d-none");
+                    $("#divEditingSong").addClass("d-none");
+                    editSong = 0;
+                }
+                return false;
+            });
+
+            $("#btnSaveSong").on("click", function () {
+                var title = $.trim($("#songTitle").val());
+                var rawChanges = $.trim($("#taChanges").val());
+                if (!title.length || !rawChanges.length) {
+                    $("#spanErrors").html("Please enter both title and changes.");
+                    return false;
+                }
+                var c = parseChanges(rawChanges);
+                // console.log(c);
+                if (c.errors.length) {
+                    $("#spanErrors").html("Could not identify " + c.errors.join(", "));
+                    return false;
+                }
+                var songs = localStorage.getObj("songs");
+                var newSong = {
+                    "title": title,
+                    "changes": c.changes
+                };
+                if (editSong) {
+                    songs[songIndex] = newSong;
+                    editSong = 0;
+                    $("#divAddingSong").removeClass("d-none");
+                    $("#divEditingSong").addClass("d-none");
+                } else {
+                    songs.push(newSong);
+                    songIndex = songs.length - 1;
+                    appendSongSelect(newSong, songIndex);
+                    $("#selectSong").val(songIndex);
+                }
+                $("#spanErrors").html("The song was succesfully saved.");
+                song = newSong.changes;
+                currentIndex = 0;
+                localStorage.setObj("songs", songs);
+                $("#songTitle").val("");
+                $("#taChanges").val("");
+                return false;
+            });
+
+            $("#selectSong").on("change", function () {
+                songIndex = $(this).val();
+                var songs = localStorage.getObj("songs");
+                var temp = songs[songIndex];
+                currentIndex = 0;
+                song = temp.changes;
+                $("#divAddSong").addClass("d-none");
             });
         });
 
@@ -164,7 +458,7 @@
                     var count = 0;
                     for (var input = inputsValues.next(); input && !input.done; input = inputsValues.next()) {
                         var deviceName = input.value.name;
-                        logIt("Found " + deviceName);
+                        logIt("Found MIDI device " + deviceName);
                         count++;
                     }
                     if (!count) {
@@ -177,7 +471,7 @@
                             var data1 = message.data[1];
                             var data2 = message.data[2];
                             if (status == 176 && data1 == 64 && data2 == 127) {
-                                pedalDown();
+                                pedalDownNew();
                             }
                             if (status == 176 && data1 == 64 && data2 == 0) {
                                 pedalUp();
@@ -199,7 +493,8 @@
             player.loader.startLoad(audioContext, info2.url, info2.variable);
             player.loader.waitLoad(function () {
                 if (!noMidiDevices) {
-                    logIt('Initialization done, press the sustain pedal to hear the first chord.', info2);
+                    logIt('Initialization done, select a song and press the sustain pedal to hear the first chord.',
+                        info2);
                 }
                 instrument = window[info2.variable];
                 player.loader.decodeAfterLoading(audioContext, info2.variable);
@@ -207,11 +502,27 @@
                     instrument.zones[i].ahdsr = false;
                 }
             });
-
         }
 
         function logIt(s) {
             $("#taLog").append(s + "\n");
+        }
+
+        function download(filename, data) {
+            var blob = new Blob([data], {
+                type: 'text/csv'
+            });
+            if (window.navigator.msSaveOrOpenBlob) {
+                window.navigator.msSaveBlob(blob, filename);
+            } else {
+                var elem = window.document.createElement('a');
+                elem.href = window.URL.createObjectURL(blob);
+                elem.download = filename;
+                document.body.appendChild(elem);
+                elem.click();
+                document.body.removeChild(elem);
+                URL.revokeObjectURL(elem.href);
+            }
         }
     </script>
 
