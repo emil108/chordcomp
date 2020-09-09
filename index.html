@@ -378,7 +378,7 @@
 
             $("#btnDeleteSong").on("click", function () {
                 var songs = localStorage.getObj("songs");
-                if (songs.length <= 1) {
+                if (songs.length <= 1 || songIndex == 0) {
                     return false;
                 }
                 if (window.confirm("Delete the current song?")) {
