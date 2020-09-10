@@ -20,6 +20,22 @@
         #spanErrors {
             padding-left: 3em;
         }
+
+        .spanChord {
+            font-size: xx-large;
+            display: inline-block;
+            padding:0.5em;
+            border: 2px solid transparent;
+        }
+
+        .spanChord:focus {
+            /* border: 2px solid #e0e020; */
+            outline: none !important;
+        }
+        .highlightChord {
+            border: 2px solid #e0e020;
+            border-radius: 0.3em;
+        }
     </style>
 
 </head>
@@ -74,8 +90,8 @@
                         </div>
                     </div>
                 </form>
-                <div class="mt-4" style="font-size:78px;font-family:sans-serif;text-align: center;" id="p1"></div>
-                <div><textarea id="taLog" class="form-control" rows="6" style="font-family: monospace"
+                <div class="mt-4" id="divSongDisplay"></div>
+                <div class="mt-4"><textarea id="taLog" class="form-control" rows="6" style="font-family: monospace"
                         readonly></textarea></div>
 
             </div>
@@ -150,7 +166,8 @@
             }
             // logIt("Pedal down");
             player.queueChord(audioContext, output, instrument, 0, dec, 999);
-            document.getElementById("p1").innerHTML = song[currentIndex];
+            // document.getElementById("p1").innerHTML = song[currentIndex];
+            highlightChord(currentIndex);
         }
 
         function pedalUp() {
@@ -160,6 +177,20 @@
             if (currentIndex >= song.length) {
                 currentIndex = 0;
             }
+        }
+
+        function displaySong(index) {
+            var s = [];
+            for (var i = 0; i < song.length; i++) {
+                s.push("<span tabindex='" + i + "' class='spanChord' data-index='" + i + "'>" + song[i] + "</span>");
+            }
+            document.getElementById("divSongDisplay").innerHTML = s.join(" ");
+            highlightChord(index);
+        }
+
+        function highlightChord(index) {
+            $(".spanChord").removeClass("highlightChord");
+            $("span[data-index=" + index + "]").addClass("highlightChord").focus();
         }
 
         var currentIndex = 0;
@@ -344,6 +375,7 @@
             }
 
             populateSongSelect();
+            displaySong(0);
 
             $("#spanChordTypes").html(function () {
                 var s = [];
@@ -432,6 +464,7 @@
                 }
                 $("#spanErrors").html("The song was succesfully saved.");
                 song = newSong.changes;
+                displaySong(0);
                 currentIndex = 0;
                 localStorage.setObj("songs", songs);
                 $("#songTitle").val("");
@@ -446,6 +479,7 @@
                 currentIndex = 0;
                 song = temp.changes;
                 $("#divAddSong").addClass("d-none");
+                displaySong(0);
             });
         });
 
