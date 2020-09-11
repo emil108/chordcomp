@@ -24,7 +24,7 @@
         .spanChord {
             font-size: xx-large;
             display: inline-block;
-            padding:0.5em;
+            padding: 0.5em;
             border: 2px solid transparent;
         }
 
@@ -32,8 +32,9 @@
             /* border: 2px solid #e0e020; */
             outline: none !important;
         }
+
         .highlightChord {
-            border: 2px solid #e0e020;
+            border: 2px solid #c0c0c0;
             border-radius: 0.3em;
         }
     </style>
@@ -62,7 +63,11 @@
                         <div class="col-12">Song menu
                             <button class="btn btn-light" type="button" id="btnAddSong">add new</button> &nbsp;
                             <button class="btn btn-light" type="button" id="btnEditSong">edit</button> &nbsp;
-                            <button class="btn btn-light" type="button" id="btnDeleteSong">delete</button>
+                            <button class="btn btn-light" type="button" id="btnDeleteSong">delete</button> &nbsp;
+                            <button class="btn btn-light btnTranspose" type="button" data-dir="up">transpose up</button>
+                            &nbsp;
+                            <button class="btn btn-light btnTranspose" type="button" data-dir="down">transpose
+                                down</button>
 
                         </div>
                     </div>
@@ -132,70 +137,12 @@
             );
         }
 
-        function pedalDown() {
-            var dec = decodedChords[song[currentIndex]];
-            // logIt("Pedal down");
-            player.queueChord(audioContext, output, instrument, 0, dec, 999);
-            document.getElementById("p1").innerHTML = song[currentIndex];
-        }
-
-        function pedalDownNew() {
-            var chord = song[currentIndex];
-            // console.log("song", song);
-            // console.log("curr.index", currentIndex);
-            // console.log("Chord", chord);
-            var offsetFromC = getNoteOffset(chord);
-            if (offsetFromC > 9) {
-                offsetFromC -= 12;
-            }
-            // logIt("offsetFromC " + offsetFromC);
-            var parts = chord.match(/^([A-G](?:#|b)?)(.*)$/);
-            if (!parts) {
-                logIt("Can't decode chord: " + chord);
-                pedalUp();
-                return false;
-            }
-            var baseChord = "C" + parts[2];
-            // logIt("baseChord " + baseChord);
-            if (!decodedBasicChords[baseChord]) {
-                logIt("Couldn't decode base chord: " + baseChord);
-            }
-            var dec = JSON.parse(JSON.stringify(decodedBasicChords[baseChord]));
-            for (var i = 0; i < dec.length; i++) {
-                dec[i] += offsetFromC;
-            }
-            // logIt("Pedal down");
-            player.queueChord(audioContext, output, instrument, 0, dec, 999);
-            // document.getElementById("p1").innerHTML = song[currentIndex];
-            highlightChord(currentIndex);
-        }
-
-        function pedalUp() {
-            player.cancelQueue(audioContext);
-            // logIt("Pedal up");
-            currentIndex++;
-            if (currentIndex >= song.length) {
-                currentIndex = 0;
-            }
-        }
-
-        function displaySong(index) {
-            var s = [];
-            for (var i = 0; i < song.length; i++) {
-                s.push("<span tabindex='" + i + "' class='spanChord' data-index='" + i + "'>" + song[i] + "</span>");
-            }
-            document.getElementById("divSongDisplay").innerHTML = s.join(" ");
-            highlightChord(index);
-        }
-
-        function highlightChord(index) {
-            $(".spanChord").removeClass("highlightChord");
-            $("span[data-index=" + index + "]").addClass("highlightChord").focus();
-        }
-
         var currentIndex = 0;
         var songIndex = 0;
         var editSong = 0;
+        // var decodedChords = {};
+        var decodedBasicChords = {};
+
         var song = ["Am7", "D7", "Gmaj7", "Cmaj7",
             "F#m7b5", "B7", "Em", "Em",
             "Am7", "D7", "Gmaj7", "Cmaj7",
@@ -205,20 +152,6 @@
             "F#m7b5", "B7b9", "Em7", "Eb7", "Dm7", "Db7",
             "Cmaj7", "B7b9", "Em", "Em"
         ];
-        var chords = {
-            "Am7": ["A3", "G4", "C5"],
-            "D7": ["D3", "C3", "F#4"],
-            "Gmaj7": ["G3", "F#4", "B4"],
-            "Cmaj7": ["C3", "B3", "E4"],
-            "F#m7b5": ["F#3", "C4", "E4", "A4"],
-            "B7": ["B2", "A3", "D#4"],
-            "Em": ["E3", "B3", "G4"],
-            "B7b9": ["B2", "A3", "C", "D#4"],
-            "Em7": ["E3", "D4", "G4"],
-            "Eb7": ["Eb3", "Db4", "G4"],
-            "Dm7": ["D3", "C4", "F4"],
-            "Db7": ["Db3", "B3", "F4"],
-        };
         var baseMIDINotes = {
             "C": 0,
             "C#": 1,
@@ -258,19 +191,64 @@
             "Cmaj7#11": ["C3", "B3", "E4", "F#4"],
             "C7b9": ["C3", "Bb3", "Db4", "E4"]
         };
+        var transpose = 0;
 
-        var decodedChords = {};
-        var decodedBasicChords = {};
-
-        function decodeChords(chords) {
-            var decoded = {};
-            for (var i in chords) {
-                decoded[i] = [];
-                for (var j = 0; j < chords[i].length; j++) {
-                    decoded[i].push(getMIDINote(chords[i][j]));
-                }
+        function pedalDown() {
+            var chord = song[currentIndex];
+            // console.log("song", song);
+            // console.log("curr.index", currentIndex);
+            // console.log("Chord", chord);
+            var offsetFromC = getNoteOffset(chord); //  + transpose;
+            if (offsetFromC > 9) {
+                offsetFromC -= 12;
             }
-            return decoded;
+            // if (offsetFromC < -2) {
+            //     offsetFromC += 12;
+            // }
+            // logIt("offsetFromC " + offsetFromC);
+            var parts = chord.match(/^([A-G](?:#|b)?)(.*)$/);
+            if (!parts) {
+                logIt("Can't decode chord: " + chord);
+                pedalUp();
+                return false;
+            }
+            var baseChord = "C" + parts[2];
+            // logIt("baseChord " + baseChord);
+            if (!decodedBasicChords[baseChord]) {
+                logIt("Couldn't decode base chord: " + baseChord);
+            }
+            var dec = JSON.parse(JSON.stringify(decodedBasicChords[baseChord]));
+            for (var i = 0; i < dec.length; i++) {
+                dec[i] += offsetFromC;
+            }
+            // logIt("Pedal down");
+            player.queueChord(audioContext, output, instrument, 0, dec, 999);
+            // document.getElementById("p1").innerHTML = song[currentIndex];
+            highlightChord(currentIndex);
+        }
+
+        function pedalUp() {
+            player.cancelQueue(audioContext);
+            // logIt("Pedal up");
+            currentIndex++;
+            if (currentIndex >= song.length) {
+                currentIndex = 0;
+            }
+            highlightChord(currentIndex);
+        }
+
+        function displaySong(index) {
+            var s = [];
+            for (var i = 0; i < song.length; i++) {
+                s.push("<span tabindex='" + i + "' class='spanChord' data-index='" + i + "'>" + song[i] + "</span>");
+            }
+            document.getElementById("divSongDisplay").innerHTML = s.join(" ");
+            highlightChord(index);
+        }
+
+        function highlightChord(index) {
+            $(".spanChord").removeClass("highlightChord");
+            $("span[data-index=" + index + "]").addClass("highlightChord").focus();
         }
 
         function decodeBasicChords(chords) {
@@ -354,11 +332,58 @@
             };
         }
 
+        function transposeSong(transp) {
+            var notes = ["A", "Bb", "B", "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab"];
+            for (var i = 0; i < song.length; i++) {
+                var parts = song[i].match(/^([A-G](?:#|b)?)(.*)$/);
+                // console.log(parts);
+                var note = normalizeNote(parts[1]);
+                // console.log(note);
+                var currI = notes.indexOf(note);
+                var newI = currI + transp;
+                if (newI >= notes.length) {
+                    newI -= notes.length;
+                }
+                if (newI < 0) {
+                    newI += notes.length;
+                }
+                var newChord = notes[newI] + parts[2];
+                // console.log("newchord",newChord);
+                song[i] = newChord;
+            }
+        }
+
+        function normalizeNote(note) {
+            switch (note) {
+                case "A#":
+                    note = "Bb";
+                    break;
+                case "Cb":
+                    note = "B";
+                    break;
+                case "Db":
+                    note = "C#";
+                    break;
+                case "D#":
+                    note = "Eb";
+                    break;
+                case "Fb":
+                    note = "E";
+                    break;
+                case "Gb":
+                    note = "F#";
+                    break;
+                case "G#":
+                    note = "Ab";
+                    break;
+            }
+            return note;
+        }
+
         var AudioContextFunc = window.AudioContext || window.webkitAudioContext;
         var audioContext;
         var output;
         var player;
-        decodedChords = decodeChords(chords);
         decodedBasicChords = decodeBasicChords(basicChords);
         $(function () {
             logIt("Hi, press Initialize MIDI devices to start.");
@@ -420,9 +445,11 @@
                         songIndex = songs.length - 1;
                     }
                     currentIndex = 0;
+                    transpose = 0;
                     songs = localStorage.getObj("songs");
                     song = songs[songIndex].changes;
                     populateSongSelect();
+                    displaySong(0);
                     $("#selectSong").val(songIndex);
                     $("#songTitle").val("");
                     $("#taChanges").val("");
@@ -464,6 +491,7 @@
                 }
                 $("#spanErrors").html("The song was succesfully saved.");
                 song = newSong.changes;
+                transpose = 0;
                 displaySong(0);
                 currentIndex = 0;
                 localStorage.setObj("songs", songs);
@@ -477,9 +505,32 @@
                 var songs = localStorage.getObj("songs");
                 var temp = songs[songIndex];
                 currentIndex = 0;
+                transpose = 0;
                 song = temp.changes;
                 $("#divAddSong").addClass("d-none");
                 displaySong(0);
+            });
+
+            $(".btnTranspose").on("click", function () {
+                if ($(this).data("dir") === "up") {
+                    transposeSong(1);
+                    transpose++;
+                    if (transpose >= 12) {
+                        transpose -= 12;
+                    }
+                } else {
+                    transposeSong(-1);
+                    transpose--;
+                    if (transpose <= -12) {
+                        transpose += 12;
+                    }
+                }
+                if (transpose == 0) {
+                    var songs = localStorage.getObj("songs");
+                    song = songs[songIndex]
+                        .changes; // make sure the original chords are used (not enharmonized ones)
+                }
+                displaySong(currentIndex);
             });
         });
 
@@ -494,7 +545,8 @@
                     const inputsValues = access.inputs.values();
 
                     var count = 0;
-                    for (var input = inputsValues.next(); input && !input.done; input = inputsValues.next()) {
+                    for (var input = inputsValues.next(); input && !input.done; input = inputsValues
+                        .next()) {
                         var deviceName = input.value.name;
                         logIt("Found MIDI device " + deviceName);
                         count++;
@@ -509,7 +561,7 @@
                             var data1 = message.data[1];
                             var data2 = message.data[2];
                             if (status == 176 && data1 == 64 && data2 == 127) {
-                                pedalDownNew();
+                                pedalDown();
                             }
                             if (status == 176 && data1 == 64 && data2 == 0) {
                                 pedalUp();
