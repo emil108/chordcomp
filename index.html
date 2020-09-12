@@ -37,6 +37,10 @@
             border: 2px solid #c0c0c0;
             border-radius: 0.3em;
         }
+
+        #divSongMenu .btn {
+            margin-bottom: 0.4em !important;
+        }
     </style>
 
 </head>
@@ -60,14 +64,15 @@
                     </div>
                     <br>
                     <div class="row">
-                        <div class="col-12">Song menu
+                        <div class="col-12" id="divSongMenu">Song menu
                             <button class="btn btn-light" type="button" id="btnAddSong">add new</button> &nbsp;
                             <button class="btn btn-light" type="button" id="btnEditSong">edit</button> &nbsp;
                             <button class="btn btn-light" type="button" id="btnDeleteSong">delete</button> &nbsp;
                             <button class="btn btn-light btnTranspose" type="button" data-dir="up">transpose up</button>
                             &nbsp;
                             <button class="btn btn-light btnTranspose" type="button" data-dir="down">transpose
-                                down</button>
+                                down</button> &nbsp;
+                            <button class="btn btn-light" id="btnRevertSongs" type="button">delete all but built-in</button>
 
                         </div>
                     </div>
@@ -120,6 +125,7 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
         integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous">
     </script>
+    <script src="js/defaults.js"></script>
 
     <script>
         Storage.prototype.setObj = function (key, obj) {
@@ -140,89 +146,13 @@
         var currentIndex = 0;
         var songIndex = 0;
         var editSong = 0;
-        // var decodedChords = {};
         var decodedBasicChords = {};
-
-        var song = ["Am7", "D7", "Gmaj7", "Cmaj7",
-            "F#m7b5", "B7", "Em", "Em",
-            "Am7", "D7", "Gmaj7", "Cmaj7",
-            "F#m7b5", "B7", "Em", "Em",
-            "F#m7b5", "B7b9", "Em", "Em",
-            "Am7", "D7", "Gmaj7", "Gmaj7",
-            "F#m7b5", "B7b9", "Em7", "Eb7", "Dm7", "Db7",
-            "Cmaj7", "B7b9", "Em", "Em"
-        ];
-        var baseMIDINotes = {
-            "C": 0,
-            "C#": 1,
-            "Db": 1,
-            "D": 2,
-            "D#": 3,
-            "Eb": 3,
-            "E": 4,
-            "Fb": 4,
-            "F": 5,
-            "F#": 6,
-            "Gb": 6,
-            "G": 7,
-            "G#": 8,
-            "Ab": 8,
-            "A": 9,
-            "A#": 10,
-            "Bb": 10,
-            "B": 11,
-            "Cb": 11
-        };
-
-        // 5, 2, add9, +, o, h, sus, ^, -, ^7, -7, 7, 7sus, h7, o7, ^9, ^13, 6, 69, ^7#11, 
-        // ^9#11, ^7#5, -6, -69, -^7, -^9, -9, -11, -7b5, h9, -b6, -#5, 9, 7b9, 7#9, 7#11, 
-        // 7b5, 7#5, 9#11, 9b5, 9#5, 7b13, 7#9#5, 7#9b5, 7#9#11, 7b9#11, 7b9b5, 7b9#5, 7b9#9, 
-        //  7b9b13, 7alt, 13, 13#11, 13b9, 13#9, 7b9sus, 7susadd3, 9sus, 13sus, 7b13sus, 11
-
-
-        var basicChords = {
-            "C": ["C3", "G3", "E4"],
-            "Cm": ["C3", "G3", "Eb4"],
-            "C7": ["C3", "Bb3", "E4"],
-            "Cm7": ["C3", "Bb3", "Eb4"],
-            "Cmaj7": ["C3", "B3", "E4"],
-            "Cm7b5": ["C3", "Gb3", "Bb3", "Eb4"],
-            "C6": ["C3", "A3", "E4"],
-            "Cmaj7#11": ["C3", "B3", "E4", "F#4"],
-            "C7b9": ["C3", "Bb3", "Db4", "E4"]
-        };
         var transpose = 0;
 
         function pedalDown() {
             var chord = song[currentIndex];
-            // console.log("song", song);
-            // console.log("curr.index", currentIndex);
-            // console.log("Chord", chord);
-            var offsetFromC = getNoteOffset(chord); //  + transpose;
-            if (offsetFromC > 9) {
-                offsetFromC -= 12;
-            }
-            // if (offsetFromC < -2) {
-            //     offsetFromC += 12;
-            // }
-            // logIt("offsetFromC " + offsetFromC);
-            var parts = chord.match(/^([A-G](?:#|b)?)(.*)$/);
-            if (!parts) {
-                logIt("Can't decode chord: " + chord);
-                pedalUp();
-                return false;
-            }
-            var baseChord = "C" + parts[2];
-            // logIt("baseChord " + baseChord);
-            if (!decodedBasicChords[baseChord]) {
-                logIt("Couldn't decode base chord: " + baseChord);
-            }
-            var dec = JSON.parse(JSON.stringify(decodedBasicChords[baseChord]));
-            for (var i = 0; i < dec.length; i++) {
-                dec[i] += offsetFromC;
-            }
-            // logIt("Pedal down");
-            player.queueChord(audioContext, output, instrument, 0, dec, 999);
+            var voicing = createVoicing(chord);
+            player.queueChord(audioContext, output, instrument, 0, voicing, 999);
             // document.getElementById("p1").innerHTML = song[currentIndex];
             highlightChord(currentIndex);
         }
@@ -235,6 +165,43 @@
                 currentIndex = 0;
             }
             highlightChord(currentIndex);
+        }
+
+        function createVoicing(chord) {
+            var voicing = [];
+            var offsetFromC = getNoteOffset(chord);
+            if (offsetFromC > 9) {
+                offsetFromC -= 12;
+            }
+            var parts = chord.match(/^([A-G](?:#|b)?)([^\/]*)\/?([A-G](?:#|b)?)?$/);
+            if (!parts) {
+                logIt("Can't decode chord: " + chord);
+                pedalUp();
+                return false;
+            }
+            var baseChord = "C" + parts[2];
+            // logIt("baseChord " + baseChord);
+            if (!decodedBasicChords[baseChord]) {
+                logIt("Couldn't decode base chord: " + baseChord);
+            }
+            var voicing = JSON.parse(JSON.stringify(decodedBasicChords[baseChord]));
+            for (var i = 0; i < voicing.length; i++) {
+                voicing[i] += offsetFromC;
+            }
+            if (parts[3]) {
+                addBassNoteToVoicing(voicing, parts[3]);
+            }
+            return voicing;
+        }
+
+        // add MIDI bass note to voicing for slash chord
+        function addBassNoteToVoicing(voic, bassNote) {
+            var lowestNote = Math.min(...voic);
+            var b = baseMIDINotes[bassNote];
+            while (b < lowestNote - 16) {
+                b += 12;
+            }
+            voic.push(b);
         }
 
         function displaySong(index) {
@@ -263,7 +230,7 @@
         }
 
         function getMIDINote(noteString) {
-            var parts = noteString.match(/([A-G](?:#|b)?)(\d+)/);
+            var parts = noteString.match(/^([A-G](?:#|b)?)(\d+)/);
             if (!parts) {
                 return false;
             }
@@ -314,7 +281,7 @@
                 if (!chords[i]) {
                     continue;
                 }
-                parts = chords[i].match(/^([A-G](?:#|b)?)(.*)$/);
+                parts = chords[i].match(/^([A-G](?:#|b)?)([^\/]*)\/?([A-G](?:#|b)?)?$/);
                 if (parts && parts[1] && (!parts[2])) {
                     song.push(chords[i]);
                     continue;
@@ -333,24 +300,31 @@
         }
 
         function transposeSong(transp) {
-            var notes = ["A", "Bb", "B", "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab"];
             for (var i = 0; i < song.length; i++) {
-                var parts = song[i].match(/^([A-G](?:#|b)?)(.*)$/);
-                // console.log(parts);
-                var note = normalizeNote(parts[1]);
-                // console.log(note);
-                var currI = notes.indexOf(note);
-                var newI = currI + transp;
-                if (newI >= notes.length) {
-                    newI -= notes.length;
+                var parts = song[i].match(/^([A-G](?:#|b)?)([^\/]*)\/?([A-G](?:#|b)?)?$/);
+                var newChord = transposeNote(parts[1], transp) + parts[2];
+                if (parts[3]) {
+                    newChord += "/" + transposeNote(parts[3], transp);
                 }
-                if (newI < 0) {
-                    newI += notes.length;
-                }
-                var newChord = notes[newI] + parts[2];
-                // console.log("newchord",newChord);
                 song[i] = newChord;
             }
+        }
+
+        function transposeNote(note, transp) {
+            var notes = ["A", "Bb", "B", "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab"];
+            var note = normalizeNote(note);
+
+            var currI = notes.indexOf(note);
+            // console.log(currI);
+            var newI = currI + transp;
+            if (newI >= notes.length) {
+                newI -= notes.length;
+            }
+            if (newI < 0) {
+                newI += notes.length;
+            }
+            // console.log(notes[newI]);
+            return notes[newI];
         }
 
         function normalizeNote(note) {
@@ -392,13 +366,14 @@
             });
             var songs = localStorage.getObj("songs");
             if (!songs || !songs.length) {
-                songs = [{
-                    "title": "Autumn Leaves",
-                    "changes": song
-                }];
+                songs = defaultSongs;
+                // [{
+                //     "title": "Autumn Leaves",
+                //     "changes": song
+                // }];
                 localStorage.setObj("songs", songs);
             }
-
+            song = songs[currentIndex].changes;
             populateSongSelect();
             displaySong(0);
 
@@ -407,7 +382,8 @@
                 for (var i in basicChords) {
                     s.push(i);
                 }
-                return "Currently recognized chord types in any key: " + s.join(", ");
+                return "Currently recognized chord types in any key: " + s.join(", ") +
+                    "<br>Plus the above slashed with any bass note, e.g. F#maj7/G#";
             });
             $("#btnAddSong,#btnEditSong").on("click", function () {
                 var clicked = this.id === "btnEditSong" ? "edit" : "add";
@@ -433,9 +409,32 @@
                 $("#divAddSong").addClass("d-none");
             });
 
+            $("#btnRevertSongs").on("click", function () {
+                if (window.confirm("Delete all songs except the " + defaultSongs.length + " built-in ones?")) {
+                    localStorage.setObj("songs",defaultSongs);
+                    songIndex = 0;
+                    currentIndex = 0;
+                    transpose = 0;
+                    songs = defaultSongs;
+                    song = songs[songIndex].changes;
+                    populateSongSelect();
+                    displaySong(0);
+                    $("#selectSong").val(songIndex);
+                    $("#songTitle").val("");
+                    $("#taChanges").val("");
+                    $("#divAddingSong").removeClass("d-none");
+                    $("#divEditingSong").addClass("d-none");
+                    editSong = 0;
+                    return false;
+                    console.log("deleted");
+                }
+                return false;
+            });
+
             $("#btnDeleteSong").on("click", function () {
                 var songs = localStorage.getObj("songs");
-                if (songs.length <= 1 || songIndex == 0) {
+                if (songs.length <= defaultSongs.length || songIndex < defaultSongs.length) {
+                    window.alert("Sorry, can't delete a built-in song.");
                     return false;
                 }
                 if (window.confirm("Delete the current song?")) {
